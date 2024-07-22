@@ -205,7 +205,7 @@
     "type": "Feature",
     "geometry": {
        "type": "Point",
-       "coordinates":  [ 114.15578,22.28222 ]
+       "coordinates":  [ 114.21190657209664,22.219193179977992 ]
     },
     "properties": {
     "place":"Stanley"
