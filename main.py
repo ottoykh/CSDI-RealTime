@@ -57,7 +57,7 @@ def fetch_and_process_data(wind_json, columns):
             coordinates = feature['geometry']['coordinates']
             data_text = fetch_data(session, feature['properties']['Data_url'])
             if data_text:
-                data = pd.read_csv(StringIO(data_text), encoding='utf-8')  # Specify UTF-8 encoding
+                data = pd.read_csv(StringIO(data_text), encoding='utf-8')
                 return [process_row(row, coordinates, columns) for _, row in data.iterrows()]
             return []
 
@@ -78,49 +78,24 @@ def fetch_and_process_data(wind_json, columns):
 
     return json.dumps(geojson, ensure_ascii=False)
 
-@app.get("/weather/wind")
-async def get_wind():
-    result = fetch_and_process_data(wind_json, [7,8,9,10])
-    if result:
-        return JSONResponse(content=json.loads(result))
-    else:
-        raise HTTPException(status_code=500, detail="Failed to fetch and process data")
+# Endpoint to fetch weather data
+@app.get("/weather/{data_type}")
+async def get_weather_data(data_type: str):
+    data_mappings = {
+        "wind": (wind_json, [7, 8, 9, 10]),
+        "temp": (temp_json, [7, 8]),
+        "24vt": (otemp_json, [7, 8]),
+        "rhum": (humd_json, [7, 8]),
+        "smls": (smls_json, [9, 10]),
+        "visi": (visi_json, [7, 8])
+    }
 
-@app.get("/weather/temp")
-async def get_temperature():
-    result = fetch_and_process_data(temp_json, [7,8])
-    if result:
-        return JSONResponse(content=json.loads(result))
-    else:
-        raise HTTPException(status_code=500, detail="Failed to fetch and process data")
+    if data_type not in data_mappings:
+        raise HTTPException(status_code=404, detail="Data type not found")
 
-@app.get("/weather/24vt")
-async def get_24temperature_variation():
-    result = fetch_and_process_data(otemp_json, [7,8])
-    if result:
-        return JSONResponse(content=json.loads(result))
-    else:
-        raise HTTPException(status_code=500, detail="Failed to fetch and process data")
+    json_data, indices = data_mappings[data_type]
+    result = fetch_and_process_data(json_data, indices)
 
-@app.get("/weather/rhum")
-async def get_relative_humidity():
-    result = fetch_and_process_data(humd_json, [7,8])
-    if result:
-        return JSONResponse(content=json.loads(result))
-    else:
-        raise HTTPException(status_code=500, detail="Failed to fetch and process data")
-
-@app.get("/weather/smls")
-async def get_smart_lamppost():
-    result = fetch_and_process_data(smls_json, [9,10])
-    if result:
-        return JSONResponse(content=json.loads(result))
-    else:
-        raise HTTPException(status_code=500, detail="Failed to fetch and process data")
-
-@app.get("/weather/visi")
-async def get_visibility():
-    result = fetch_and_process_data(visi_json, [7,8])
     if result:
         return JSONResponse(content=json.loads(result))
     else:
