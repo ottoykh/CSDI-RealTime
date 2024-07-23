@@ -1,0 +1,14 @@
+{
+    "builds": [
+        {
+            "src": "csdi-api/hko.py",
+            "use": "@vercel/python"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "main.py"
+        }
+    ]
+}
