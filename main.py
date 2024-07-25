@@ -6,6 +6,7 @@ import json
 from io import StringIO
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
 
 app = FastAPI()
 @app.get("/")
@@ -78,7 +79,6 @@ def fetch_and_process_data(wind_json, columns):
 
     return json.dumps(geojson, ensure_ascii=False)
 
-# Endpoint to fetch weather data
 @app.get("/weather/{data_type}")
 async def get_weather_data(data_type: str):
     data_mappings = {
@@ -100,3 +100,94 @@ async def get_weather_data(data_type: str):
         return JSONResponse(content=json.loads(result))
     else:
         raise HTTPException(status_code=500, detail="Failed to fetch and process data")
+
+coordinates = { "Southern": [114.16014, 22.247461], "North": [114.128244, 22.496697], "Kwun Tong": [114.231174, 22.309625], "Tseung Kwan O": [114.259561, 22.317642], "Tuen Mun": [113.976728, 22.391143], "Tung Chung": [113.943659, 22.288889], "Eastern Air": [114.219372, 22.282886], "Tap Mun": [114.360719, 22.471317], "Kwai Chung": [114.129601, 22.357104], "Yuen Long": [114.022649, 22.445155], "Sha Tin": [114.184532, 22.376281], "Sham Shui Po": [114.159109, 22.330226], "Tai Po": [114.16457, 22.45096], "Mong Kok": [114.168272, 22.322611], "Central/Western": [114.144421, 22.284891], "Central": [114.158127, 22.281815], "Causeway Bay": [114.18509, 22.280133], "Tsuen Wan": [114.114535, 22.371742] }
+
+@app.get("/aqhi/data/")
+def get_pollutant_data(last=False):
+    url = "https://www.aqhi.gov.hk/js/data/past_24_pollutant.js"
+    data = fetch_and_extract_json(url, "station_24_data")
+
+    if data:
+        features = []
+        for station_data in data:
+            for entry in station_data:
+                station_name = entry["StationNameEN"]
+                if station_name in coordinates:
+                    longitude, latitude = coordinates[station_name]
+
+                    feature = {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [longitude, latitude]
+                        },
+                        "properties": {
+                            "name": station_name,
+                            "feature": []
+                        }
+                    }
+
+                    measurement = {
+                        "DateTime": entry["DateTime"],
+                        "aqhi": entry["aqhi"],
+                        "NO2": entry["NO2"],
+                        "O3": entry["O3"],
+                        "SO2": entry["SO2"],
+                        "CO": entry["CO"],
+                        "PM10": entry["PM10"],
+                        "PM25": entry["PM25"]
+                    }
+
+                    existing_feature = next((f for f in features if f["properties"]["name"] == station_name), None)
+                    if existing_feature:
+                        existing_feature["properties"]["feature"].append(measurement)
+                    else:
+                        feature["properties"]["feature"].append(measurement)
+                        features.append(feature)
+
+        if last:
+            for feature in features:
+                if feature["properties"]["feature"]:
+                    feature["properties"]["feature"] = [feature["properties"]["feature"][0]]
+
+        geojson = {
+            "type": "FeatureCollection",
+            "features": features
+        }
+
+        return geojson
+    else:
+        return {"error": "No match found"}
+
+def fetch_and_extract_json(url, variable_name):
+    response = requests.get(url)
+    js_content = response.text
+
+    pattern = rf"var {variable_name} = (.+);"
+    match = re.search(pattern, js_content)
+    if match:
+        json_data = match.group(1)
+        data = json.loads(json_data)
+        return data
+    else:
+        return None
+
+@app.get("/aqhi/repo/")
+def get_aqhi_report_and_forecast():
+    url = "https://www.aqhi.gov.hk/js/data/forecast_aqhi.js"
+    aqhi_report = fetch_and_extract_json(url, "aqhi_report")
+    aqhi_forecast = fetch_and_extract_json(url, "aqhi_forecast")
+
+    response_data = {}
+    if aqhi_report:
+        response_data["aqhi_report"] = aqhi_report
+    else:
+        response_data["aqhi_report"] = {"error": "No match found for aqhi_report."}
+
+    if aqhi_forecast:
+        response_data["aqhi_forecast"] = aqhi_forecast
+    else:
+        response_data["aqhi_forecast"] = {"error": "No match found for aqhi_forecast."}
+
+    return response_data
