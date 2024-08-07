@@ -8,7 +8,6 @@ from io import StringIO
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
-import geopandas as gpd
 import asyncio
 
 app = FastAPI()
